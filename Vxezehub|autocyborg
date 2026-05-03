@@ -39,24 +39,25 @@ function TweenTo(cf)
     return tween
 end
 
--- [[ SERVER HOP FIX ]]
+-- [[ SPEED SERVER HOP - FIXED & FAST ]]
 function HopServer()
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
-    -- Sửa lại API chuẩn của Roblox
-    local Api = "https://roblox.com" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local PlaceId = game.PlaceId
+    -- Dùng Desc để ưu tiên server vắng giúp load nhanh hơn
+    local Api = "https://roblox.com" .. PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
     
-    local s, r = pcall(function() 
-        return HttpService:JSONDecode(game:HttpGet(Api)) 
-    end)
-    
-    if s and r.data then
-        for _, v in pairs(r.data) do
-            if v.playing < v.maxPlayers and v.id ~= game.JobId then
-                pcall(function()
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, player)
-                end)
-                task.wait(1)
+    print("🚀 Đang Speed Hop tìm server mới...")
+    while task.wait(0.1) do
+        local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(Api)) end)
+        if s and r.data then
+            for _, v in pairs(r.data) do
+                if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                    pcall(function()
+                        TeleportService:TeleportToPlaceInstance(PlaceId, v.id, player)
+                    end)
+                    task.wait(0.2) -- Tốc độ spam cực nhanh
+                end
             end
         end
     end
@@ -69,9 +70,10 @@ function MainLogic()
         local char = player.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
 
+        -- Logic săn Fist of Darkness
         local Fist = char:FindFirstChild("Fist of Darkness") or player.Backpack:FindFirstChild("Fist of Darkness")
         if Fist then
-            print("Đã tìm thấy Fist of Darkness! Đang đi lấy Microchip...")
+            print("Đã tìm thấy Fist! Đang tiến hành Raid...")
             local t1 = TweenTo(CFrame.new(-6473, 250, -4493))
             if t1 then t1.Completed:Wait() end
             game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("BuyMicrochip")
@@ -82,6 +84,7 @@ function MainLogic()
             break
         end
 
+        -- Tìm rương gần nhất
         local target, distMin = nil, math.huge
         for _, v in ipairs(workspace:GetDescendants()) do
             if v:IsA("BasePart") and string.find(v.Name, "Chest") and v:FindFirstChild("TouchInterest") and not VisitedChests[v] then
@@ -98,9 +101,8 @@ function MainLogic()
             if tw then tw.Completed:Wait() end
             VisitedChests[target] = true
         elseif getgenv().Config.AutoHop then
-            print("Hết rương, đang chuyển server...")
-            HopServer()
-            task.wait(5)
+            HopServer() -- Kích hoạt Speed Hop khi hết rương
+            break 
         end
     end
 end
@@ -113,10 +115,10 @@ task.spawn(function()
     end
 end)
 
--- [[ EXTERNAL HUB ]]
+-- [[ LOAD EXTERNAL HUB ]]
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/giabin987-ops/missem/refs/heads/main/VxezeHub"))()
 end)
 
--- Start
+-- Bắt đầu chạy
 task.spawn(MainLogic)
