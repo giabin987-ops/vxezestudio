@@ -1,7 +1,16 @@
--- [[ LOAD GAME ]]
+-- [[ CONFIG ]]
+getgenv().Config = {
+    Team = "Pirates", 
+    AutoCyborg = true,
+    TweenSpeed = 250,
+}
+
+-- [[ BIẾN HỆ THỐNG ]]
 repeat task.wait() until game:IsLoaded()
 local player = game.Players.LocalPlayer
 local VisitedChests = {}
+local ChestCount = 0
+local StartTime = os.time()
 
 -- [[ AUTO TEAM ]]
 task.spawn(function()
@@ -12,14 +21,17 @@ task.spawn(function()
     end
 end)
 
--- [[ TWEEN FUNCTION ]]
+-- [[ TWEEN FUNCTION - FIX NOCLIP & STOP ]]
 function TweenTo(cf)
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local root = char.HumanoidRootPart
+    
     if _G.CurrentTween then _G.CurrentTween:Cancel() end
+    
     local dist = (cf.Position - root.Position).Magnitude
     if dist < 20 then root.CFrame = cf return end
+    
     local tween = game:GetService("TweenService"):Create(
         root,
         TweenInfo.new(dist / getgenv().Config.TweenSpeed, Enum.EasingStyle.Linear),
@@ -27,25 +39,34 @@ function TweenTo(cf)
     )
     _G.CurrentTween = tween
     tween:Play()
-    task.spawn(function()
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
+    
+    -- Noclip liên tục cho đến khi Tween xong
+    local noclip = game:GetService("RunService").Stepped:Connect(function()
+        if char and char:Parent() then
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
-            task.wait()
         end
     end)
+
+    tween.Completed:Connect(function()
+        noclip:Disconnect()
+    end)
+    
     return tween
 end
 
--- [[ SERVER HOP ]]
+-- [[ FIXED HOP SERVER ]]
 function HopServer()
+    local HttpService = game:GetService("HttpService")
+    local TPS = game:GetService("TeleportService")
     local Api = "https://roblox.com"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-    local s, r = pcall(function() return game:GetService("HttpService"):JSONDecode(game:HttpGet(Api)) end)
+    
+    local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(Api)) end)
     if s and r.data then
         for _, v in pairs(r.data) do
             if v.playing < v.maxPlayers and v.id ~= game.JobId then
-                game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, v.id, player)
+                TPS:TeleportToPlaceInstance(game.PlaceId, v.id, player)
                 return
             end
         end
@@ -54,23 +75,32 @@ end
 
 -- [[ MAIN LOGIC ]]
 function MainLogic()
+    StartTime = os.time()
+    ChestCount = 0
+    
     while getgenv().Config.AutoCyborg do
         task.wait(0.1)
         local char = player.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
 
+        -- 1. KIỂM TRA KEY RÂU ĐEN (NGỪNG NẾU THẤY)
         local Fist = char:FindFirstChild("Fist of Darkness") or player.Backpack:FindFirstChild("Fist of Darkness")
         if Fist then
-            local t1 = TweenTo(CFrame.new(-6473, 250, -4493))
-            if t1 then t1.Completed:Wait() end
-            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("BuyMicrochip")
-            task.wait(0.5)
-            local t2 = TweenTo(CFrame.new(-6475, 250, -4490))
-            if t2 then t2.Completed:Wait() end
-            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StartRaid")
-            break
+            if _G.CurrentTween then _G.CurrentTween:Cancel() end
+            print("--- ĐÃ CÓ FIST OF DARKNESS, NGỪNG SCRIPT ---")
+            getgenv().Config.AutoCyborg = false
+            break 
         end
 
+        -- 2. CHECK 10 RƯƠNG HOẶC 5 GIÂY THÌ SPAM HOP
+        local TimeElapsed = os.time() - StartTime
+        if ChestCount >= 10 or TimeElapsed >= 5 then
+            HopServer()
+            task.wait(1)
+            continue
+        end
+
+        -- 3. TÌM RƯƠNG
         local target, distMin = nil, math.huge
         for _, v in ipairs(workspace:GetDescendants()) do
             if v:IsA("BasePart") and string.find(v.Name, "Chest") and v:FindFirstChild("TouchInterest") and not VisitedChests[v] then
@@ -81,27 +111,21 @@ function MainLogic()
 
         if target then
             local tw = TweenTo(target.CFrame + Vector3.new(0,3,0))
-            if tw then tw.Completed:Wait() end
-            VisitedChests[target] = true
-        elseif getgenv().Config.AutoHop then
+            if tw then 
+                tw.Completed:Wait() 
+                ChestCount = ChestCount + 1
+                VisitedChests[target] = true
+            end
+        else
             HopServer()
-            task.wait(5)
+            task.wait(2)
         end
     end
 end
-
--- [[ MOUSE FIX ]]
-task.spawn(function()
-    while true do
-        task.wait(2)
-        pcall(function() game:GetService("UserInputService").MouseIconEnabled = true end)
-    end
-end)
 
 -- [[ PHẦN CUỐI CÙNG ]]
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/giabin987-ops/missem/refs/heads/main/VxezeHub"))()
 end)
 
--- Bắt đầu chạy
 task.spawn(MainLogic)
