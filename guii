@@ -1,62 +1,54 @@
 --[[
-    ╔═══════════════════════════════════════════╗
-    ║         CHUOI HUB  —  v2.0                ║
-    ║   LocalScript → StarterPlayerScripts      ║
-    ║   Matches reference screenshot exactly    ║
-    ╚═══════════════════════════════════════════╝
+    ╔══════════════════════════════════════════════════════╗
+    ║              CHUOI HUB  —  v4.0  FINAL              ║
+    ║        LocalScript → StarterPlayerScripts           ║
+    ╚══════════════════════════════════════════════════════╝
 
-    FEATURES
-    ────────
-    • TweenService staggered boot fade-in (1.2s total)
-    • Live data binding via GetPropertyChangedSignal
-    • RunService Heartbeat timer (elapsed seconds)
-    • [M] key toggles visibility with smooth tween
-    • Red-dot pill status check buttons (3×2 grid)
-    • Pixel dimensions tuned to match screenshot
+    • Màu đen mờ charcoal đúng chuẩn ảnh (không xanh lam)
+    • Outer glow shadow mờ phía ngoài panel
+    • Không có 6 nút đỏ — chỉ có dòng "Status Checks"
+    • Race + Level + Beli + Frag cập nhật realtime
+    • Top bar: Farm/Item/timer + status bar
+    • [M] toggle mượt mà
+    • Boot fade-in 1.2s staggered
 ]]
 
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
 -- SERVICES
--- ══════════════════════════════════════════════════════════
-local Players         = game:GetService("Players")
-local TweenService    = game:GetService("TweenService")
-local RunService      = game:GetService("RunService")
+-- ════════════════════════════════════════════
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
+local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+local LP        = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
 
--- ══════════════════════════════════════════════════════════
--- UTILITY HELPERS
--- ══════════════════════════════════════════════════════════
-
---- Format a number with comma separators: 54881186 → "54,881,186"
-local function fmtNumber(n)
+-- ════════════════════════════════════════════
+-- UTILITIES
+-- ════════════════════════════════════════════
+local function fmtNum(n)
     local s = tostring(math.floor(tonumber(n) or 0))
     return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
---- Format elapsed seconds as "Xs" under 60, else "Xm Ys", else "Xh Ym"
 local function fmtElapsed(t)
     t = math.floor(t)
-    if t < 60 then
-        return t .. "s"
+    if t < 60    then return t .. "s"
     elseif t < 3600 then
-        return math.floor(t/60) .. "m " .. (t%60) .. "s"
+        return math.floor(t / 60) .. "m " .. (t % 60) .. "s"
     else
-        local h = math.floor(t/3600)
-        local m = math.floor((t%3600)/60)
-        return h .. "h " .. m .. "m"
+        return math.floor(t / 3600) .. "h " .. math.floor((t % 3600) / 60) .. "m"
     end
 end
 
---- Tween a single property on any Instance
-local function tween(obj, props, duration, style, direction, delay)
-    style     = style     or Enum.EasingStyle.Quad
-    direction = direction or Enum.EasingDirection.Out
-    delay     = delay     or 0
-    local info = TweenInfo.new(duration, style, direction)
-    if delay > 0 then
+local function tw(obj, props, dur, style, dir, delay)
+    local info = TweenInfo.new(
+        dur   or 0.25,
+        style or Enum.EasingStyle.Quad,
+        dir   or Enum.EasingDirection.Out
+    )
+    if delay and delay > 0 then
         task.delay(delay, function()
             TweenService:Create(obj, info, props):Play()
         end)
@@ -65,547 +57,440 @@ local function tween(obj, props, duration, style, direction, delay)
     end
 end
 
--- ══════════════════════════════════════════════════════════
--- COLOUR & FONT CONSTANTS  (tuned to screenshot)
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
+-- COLOUR PALETTE
+-- Sampled pixel-accurately from IMG_9573
+-- Background của Roblox game là bầu trời xanh
+-- nhưng UI tự nó hoàn toàn là đen/xám tối
+-- ════════════════════════════════════════════
 local C = {
-    BG_DARK   = Color3.fromRGB(22,  22,  24),   -- #161618  main panel bg
-    BG_MID    = Color3.fromRGB(30,  30,  33),   -- inner containers
-    BG_ROW    = Color3.fromRGB(26,  26,  30),   -- stat row bg
-    BORDER    = Color3.fromRGB(255, 215,  0),   -- #FFD700 gold border
-    GOLD      = Color3.fromRGB(255, 215,  0),
-    WHITE     = Color3.fromRGB(255, 255, 255),
-    GREY      = Color3.fromRGB(170, 170, 170),
-    RED_DOT   = Color3.fromRGB(200,  45,  45),  -- pill button red
-    RED_HOVER = Color3.fromRGB(230,  60,  60),
-    GREEN     = Color3.fromRGB( 80, 220, 100),
-    TRANSPARENT = Color3.fromRGB(0, 0, 0),
+    -- Outer wrapper (lớp ngoài cùng, xám đen hơi tím cực nhẹ)
+    WRAP        = Color3.fromRGB(32,  33,  40),
+    -- Panel chính (Banana Stats Checker container)
+    PANEL       = Color3.fromRGB(20,  21,  26),
+    -- Inner box nền stat rows và Account Items
+    BOX         = Color3.fromRGB(13,  14,  18),
+    -- Header strip bên trong box (Account Stats / Account Items title row)
+    BOX_HDR     = Color3.fromRGB(18,  19,  24),
+    -- Mỗi stat row riêng lẻ
+    ROW         = Color3.fromRGB(11,  12,  17),
+    -- Top controller bar
+    BAR         = Color3.fromRGB(20,  21,  26),
+    -- Border vàng ngoài panel
+    GOLD_BORDER = Color3.fromRGB(190, 155,  40),
+    -- Border mờ bên trong
+    INNER_BDR   = Color3.fromRGB(42,  44,  55),
+    -- Glow shadow ngoài cùng (đen mờ trong suốt)
+    SHADOW      = Color3.fromRGB(8,   8,   10),
+    -- Chữ
+    GOLD        = Color3.fromRGB(255, 215,   0),
+    WHITE       = Color3.fromRGB(255, 255, 255),
+    GREY        = Color3.fromRGB(155, 157, 165),
+    GREEN       = Color3.fromRGB( 80, 210,  90),
+    SEA_NO      = Color3.fromRGB(190,  65,  65),
 }
 
--- Gotham via rbxasset (available in Roblox since 2022)
-local FONT_BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
-local FONT_SEMI = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
-local FONT_REG  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular)
+local BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+local SEMI = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)
+local REG  = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular)
 
--- ══════════════════════════════════════════════════════════
--- CONSTRUCTION HELPERS
--- ══════════════════════════════════════════════════════════
-
-local function corner(parent, radius)
+-- ════════════════════════════════════════════
+-- HELPERS
+-- ════════════════════════════════════════════
+local function mkCorner(p, r)
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, radius)
-    c.Parent = parent
-    return c
+    c.CornerRadius = UDim.new(0, r); c.Parent = p
 end
 
-local function stroke(parent, color, thickness)
+local function mkStroke(p, col, t)
     local s = Instance.new("UIStroke")
-    s.Color     = color or C.BORDER
-    s.Thickness = thickness or 1
-    s.Parent    = parent
+    s.Color = col or C.GOLD_BORDER
+    s.Thickness = t or 1
+    s.Parent = p
     return s
 end
 
-local function padding(parent, l, r, t, b)
-    local p = Instance.new("UIPadding")
-    p.PaddingLeft   = UDim.new(0, l or 0)
-    p.PaddingRight  = UDim.new(0, r or 0)
-    p.PaddingTop    = UDim.new(0, t or 0)
-    p.PaddingBottom = UDim.new(0, b or 0)
-    p.Parent = parent
-    return p
+local function mkPad(p, l, r, t, b)
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft   = UDim.new(0, l or 0)
+    pad.PaddingRight  = UDim.new(0, r or 0)
+    pad.PaddingTop    = UDim.new(0, t or 0)
+    pad.PaddingBottom = UDim.new(0, b or 0)
+    pad.Parent = p
 end
 
-local function frame(parent, name, size, pos, bg, rad)
+local function mkFrame(parent, name, size, pos, bg, rad)
     local f = Instance.new("Frame")
-    f.Name                 = name
-    f.Size                 = size
-    f.Position             = pos or UDim2.new(0, 0, 0, 0)
-    f.BackgroundColor3     = bg  or C.BG_DARK
-    f.BorderSizePixel      = 0
-    f.ClipsDescendants     = false
-    f.Parent               = parent
-    if rad then corner(f, rad) end
+    f.Name = name
+    f.Size = size
+    f.Position = pos or UDim2.new(0, 0, 0, 0)
+    f.BackgroundColor3 = bg or C.PANEL
+    f.BorderSizePixel = 0
+    f.Parent = parent
+    if rad then mkCorner(f, rad) end
     return f
 end
 
-local function label(parent, name, text, size, pos, color, font, tsize, xalign, anchor)
+local function mkLabel(p, name, text, size, pos, col, font, tsize, xalign, anchor)
     local l = Instance.new("TextLabel")
-    l.Name                 = name
-    l.Text                 = text
-    l.Size                 = size
-    l.Position             = pos or UDim2.new(0, 0, 0, 0)
+    l.Name = name; l.Text = text
+    l.Size = size
+    l.Position = pos or UDim2.new(0, 0, 0, 0)
     l.BackgroundTransparency = 1
-    l.TextColor3           = color  or C.WHITE
-    l.FontFace             = font   or FONT_SEMI
-    l.TextSize             = tsize  or 13
-    l.TextXAlignment       = xalign or Enum.TextXAlignment.Left
-    l.TextYAlignment       = Enum.TextYAlignment.Center
-    l.TextTruncate         = Enum.TextTruncate.AtEnd
+    l.TextColor3 = col or C.WHITE
+    l.FontFace = font or SEMI
+    l.TextSize = tsize or 13
+    l.TextXAlignment = xalign or Enum.TextXAlignment.Left
+    l.TextYAlignment = Enum.TextYAlignment.Center
+    l.TextTruncate = Enum.TextTruncate.AtEnd
     if anchor then l.AnchorPoint = anchor end
-    l.Parent               = parent
+    l.Parent = p
     return l
 end
 
--- ══════════════════════════════════════════════════════════
--- SCREENGUI  +  ROOT CANVAS GROUP
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
+-- SCREENGUI
+-- ════════════════════════════════════════════
+local SGui = Instance.new("ScreenGui")
+SGui.Name = "VxezeHub"
+SGui.ResetOnSpawn = false
+SGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+SGui.IgnoreGuiInset = true
+SGui.Parent = PlayerGui
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name            = "ChuoiHub"
-ScreenGui.ResetOnSpawn    = false
-ScreenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset  = true
-ScreenGui.Parent          = PlayerGui
-
--- Single CanvasGroup covers everything; we tween GroupTransparency for the
--- global fade without needing per-element transparency management.
+-- ════════════════════════════════════════════
+-- ROOT CANVAS GROUP
+-- ════════════════════════════════════════════
 local Root = Instance.new("CanvasGroup")
-Root.Name                 = "Root"
-Root.AnchorPoint          = Vector2.new(0.5, 0)
-Root.Size                 = UDim2.new(0, 500, 0, 520)
-Root.Position             = UDim2.new(0.5, 0, 0, 30)
+Root.Name = "Root"
+Root.AnchorPoint = Vector2.new(0.5, 0.5)
+Root.Size = UDim2.new(0, 560, 0, 560)
+Root.Position = UDim2.new(0.5, 0, 0.5, 0)
 Root.BackgroundTransparency = 1
-Root.GroupTransparency    = 1     -- starts invisible; boot tween sets to 0
-Root.Parent               = ScreenGui
+Root.GroupTransparency = 1   -- boot starts invisible
+Root.Parent = SGui
 
--- ══════════════════════════════════════════════════════════
--- DISCORD LABEL  (above Frame 1, centred)
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
+-- OUTER GLOW / SHADOW LAYERS
+-- 3 stacked dark frames growing outward,
+-- each more transparent = soft blur effect
+-- ════════════════════════════════════════════
+local shadowSizes = {
+    { offset = 22, alpha = 0.72 },
+    { offset = 14, alpha = 0.55 },
+    { offset =  7, alpha = 0.35 },
+}
+for _, s in ipairs(shadowSizes) do
+    local sh = mkFrame(Root, "Shadow_"..s.offset,
+        UDim2.new(1, s.offset, 1, s.offset),
+        UDim2.new(0.5, 0, 0.5, 0),
+        C.SHADOW, 18
+    )
+    sh.AnchorPoint = Vector2.new(0.5, 0.5)
+    sh.BackgroundTransparency = s.alpha
+    sh.ZIndex = 1
+end
 
-label(Root, "DiscordTag",
-    "discord.gg/chuoihub",
+-- ════════════════════════════════════════════
+-- OUTER WRAPPER FRAME
+-- (xám đen tối, viền vàng mờ)
+-- ════════════════════════════════════════════
+local Wrap = mkFrame(Root, "OuterWrap",
+    UDim2.new(1, 0, 1, 0),
+    UDim2.new(0, 0, 0, 0),
+    C.WRAP, 14
+)
+Wrap.ZIndex = 2
+mkStroke(Wrap, C.GOLD_BORDER, 1)
+mkPad(Wrap, 12, 12, 10, 12)
+
+-- ════════════════════════════════════════════
+-- DISCORD TAG  (above bar, centered)
+-- ════════════════════════════════════════════
+local discordTag = mkLabel(Wrap, "DiscordTag",
+    "discord.gg/vzexehub",
     UDim2.new(1, 0, 0, 18),
     UDim2.new(0, 0, 0, 0),
-    C.GOLD, FONT_SEMI, 13,
+    C.GOLD, SEMI, 13,
     Enum.TextXAlignment.Center
 )
 
--- ══════════════════════════════════════════════════════════
--- FRAME 1  —  TOP CONTROLLER BAR
--- ══════════════════════════════════════════════════════════
--- Height:  ~72px   Width: 100%   Position: below discord tag
--- ──────────────────────────────────────────────────────────
-
-local Bar = frame(Root, "ControllerBar",
-    UDim2.new(1, 0, 0, 72),
+-- ════════════════════════════════════════════
+-- FRAME 1 — TOP CONTROLLER BAR
+-- ════════════════════════════════════════════
+local Bar = mkFrame(Wrap, "ControlBar",
+    UDim2.new(1, 0, 0, 70),
     UDim2.new(0, 0, 0, 22),
-    C.BG_DARK, 9
+    C.BAR, 10
 )
-stroke(Bar, C.BORDER, 1)
-padding(Bar, 14, 14, 8, 8)
+mkStroke(Bar, C.GOLD_BORDER, 1)
+mkPad(Bar, 14, 14, 8, 8)
 
--- Row 1: Sun + Farm status
-local farmRow = frame(Bar, "FarmRow", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 0), C.BG_DARK)
-
-label(farmRow, "SunIco",
-    "✦",                                            -- stand-in sun glyph
-    UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0),
-    C.GOLD, FONT_BOLD, 14
-)
-
--- "Farm : Collect Berry" — left-aligned gold text, centred in bar
-local farmLabel = label(farmRow, "FarmText",
-    "Farm : Collect Berry",
+-- Row 1 — Farm
+local r1 = mkFrame(Bar, "R1", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 0), C.BAR)
+mkLabel(r1, "Ico", "✦", UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0), C.GOLD, BOLD, 14)
+local farmLbl = mkLabel(r1, "Text",
+    "Farm : Auto Bounty",
     UDim2.new(1, -20, 1, 0), UDim2.new(0, 20, 0, 0),
-    C.GOLD, FONT_BOLD, 14,
-    Enum.TextXAlignment.Center
+    C.GOLD, BOLD, 13, Enum.TextXAlignment.Center
 )
 
--- Row 2: Bolt + Item / progress text
-local itemRow = frame(Bar, "ItemRow", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 22), C.BG_DARK)
-
-label(itemRow, "BoltIco",
-    "⚡",
-    UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0),
-    C.GOLD, FONT_BOLD, 13
-)
-
-local itemLabel = label(itemRow, "ItemText",
+-- Row 2 — Item / timer
+local r2 = mkFrame(Bar, "R2", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 22), C.BAR)
+mkLabel(r2, "Ico", "⚡", UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0), C.GOLD, BOLD, 14)
+local itemLbl = mkLabel(r2, "Text",
     "Item : Time Machine | 00:00:00",
     UDim2.new(1, -20, 1, 0), UDim2.new(0, 20, 0, 0),
-    C.GOLD, FONT_SEMI, 13,
-    Enum.TextXAlignment.Center
+    C.GOLD, SEMI, 13, Enum.TextXAlignment.Center
 )
 
--- Row 3: Status bar (smaller, grey/white, centred)
-local statusLabel = label(Bar, "StatusBar",
+-- Row 3 — Status bar
+local statusLbl = mkLabel(Bar, "StatusBar",
     "Lv.? | Sea? | Frag:? | 0s",
     UDim2.new(1, 0, 0, 16),
     UDim2.new(0, 0, 0, 46),
-    C.GREY, FONT_REG, 12,
+    C.GREY, REG, 12,
     Enum.TextXAlignment.Center
 )
 
--- ══════════════════════════════════════════════════════════
--- FRAME 2  —  MAIN STATS CHECKER PANEL
--- ══════════════════════════════════════════════════════════
--- Positioned directly below Frame 1 (~14px gap)
-
-local Panel = frame(Root, "MainPanel",
-    UDim2.new(1, 0, 0, 400),
-    UDim2.new(0, 0, 0, 104),     -- 22 discord + 72 bar + 10 gap
-    C.BG_DARK, 10
+-- ════════════════════════════════════════════
+-- FRAME 2 — MAIN PANEL (Banana Stats Checker)
+-- ════════════════════════════════════════════
+local Panel = mkFrame(Wrap, "MainPanel",
+    UDim2.new(1, 0, 0, 420),
+    UDim2.new(0, 0, 0, 100),   -- 22 discord + 70 bar + 8 gap
+    C.PANEL, 12
 )
-stroke(Panel, C.BORDER, 1)
-padding(Panel, 14, 14, 12, 14)
+mkStroke(Panel, C.GOLD_BORDER, 1)
+mkPad(Panel, 14, 14, 12, 14)
 
--- ─── Panel Header ───────────────────────────────────────
-local panelHeader = frame(Panel, "PanelHeader", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 0), C.BG_DARK)
+-- Panel header
+local phdr = mkFrame(Panel, "PanelHdr", UDim2.new(1, 0, 0, 28), UDim2.new(0, 0, 0, 0), C.PANEL)
+mkLabel(phdr, "Ico",   "🍌", UDim2.new(0, 24, 1, 0), UDim2.new(0, 0, 0, 0),   C.GOLD,  BOLD, 18)
+mkLabel(phdr, "Title", "Banana Stats Checker",
+    UDim2.new(0, 230, 1, 0), UDim2.new(0, 27, 0, 0), C.GOLD,  BOLD, 16)
+mkLabel(phdr, "Toggle","[ M ] toggle",
+    UDim2.new(0, 95, 1, 0), UDim2.new(1, -95, 0, 0),
+    C.GREY, REG, 12, Enum.TextXAlignment.Right)
 
-label(panelHeader, "BananaIco",
-    "🍌",
-    UDim2.new(0, 22, 1, 0), UDim2.new(0, 0, 0, 0),
-    C.GOLD, FONT_BOLD, 17
-)
-label(panelHeader, "PanelTitle",
-    "Banana Stats Checker",
-    UDim2.new(0, 220, 1, 0), UDim2.new(0, 26, 0, 0),
-    C.GOLD, FONT_BOLD, 16
-)
-label(panelHeader, "ToggleHint",
-    "[ M ] toggle",
-    UDim2.new(0, 90, 1, 0),
-    UDim2.new(1, -90, 0, 0),
-    C.GREY, FONT_REG, 12,
-    Enum.TextXAlignment.Right
+-- Divider line under header
+local divider = mkFrame(Panel, "Divider",
+    UDim2.new(1, 0, 0, 1),
+    UDim2.new(0, 0, 0, 32),
+    C.INNER_BDR
 )
 
--- ══════════════════════════════════════════════════════════
--- LEFT PANEL  —  Account Stats
--- ══════════════════════════════════════════════════════════
-
-local LEFT_W  = 210   -- px
-local LEFT_X  = 0
-local COLS_Y  = 36    -- below header
-
-local leftBox = frame(Panel, "LeftBox",
-    UDim2.new(0, LEFT_W, 0, 196),
-    UDim2.new(0, LEFT_X, 0, COLS_Y),
-    C.BG_MID, 8
+-- ════════════════════════════════════════════
+-- LEFT BOX — Account Stats
+-- ════════════════════════════════════════════
+local LBox = mkFrame(Panel, "LBox",
+    UDim2.new(0.49, 0, 0, 230),
+    UDim2.new(0, 0, 0, 40),
+    C.BOX, 10
 )
-stroke(leftBox, Color3.fromRGB(60, 60, 70), 1)
-padding(leftBox, 10, 8, 8, 8)
+mkStroke(LBox, C.INNER_BDR, 1)
+mkPad(LBox, 10, 8, 8, 8)
 
--- Left box sub-header
-local lHeader = frame(leftBox, "LHeader", UDim2.new(1, 0, 0, 22), UDim2.new(0, 0, 0, 0), C.BG_MID)
-label(lHeader, "DocIco", "📋", UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0), C.GOLD, FONT_BOLD, 13)
-label(lHeader, "LTitle", "Account Stats", UDim2.new(1, -22, 1, 0), UDim2.new(0, 22, 0, 0), C.WHITE, FONT_SEMI, 12)
+-- Left box header strip
+local lh = mkFrame(LBox, "LHdr", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 0), C.BOX_HDR, 6)
+mkLabel(lh, "Ico",   "📋", UDim2.new(0, 20, 1, 0), UDim2.new(0, 4,  0, 0), C.GOLD, BOLD, 13)
+mkLabel(lh, "Title", "Account Stats",
+    UDim2.new(1, -26, 1, 0), UDim2.new(0, 26, 0, 0), C.WHITE, SEMI, 12)
 
--- Helper: one stat row inside leftBox
-local function makeStatRow(yOff, ico, lText, valDefault, rowName)
-    local row = frame(leftBox, rowName.."_Row",
-        UDim2.new(1, 0, 0, 36),
+-- Helper: stat row
+local function mkStatRow(yOff, ico, labelTxt, defVal, rowId)
+    local row = mkFrame(LBox, rowId.."_Row",
+        UDim2.new(1, 0, 0, 40),
         UDim2.new(0, 0, 0, yOff),
-        C.BG_ROW, 6
+        C.ROW, 7
     )
-    -- tiny left padding inside row
-    padding(row, 8, 6, 0, 0)
-
-    label(row, "Ico",   ico,     UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0),  C.GOLD,  FONT_BOLD, 14)
-    local lbl = label(row, "Lbl", lText,  UDim2.new(0, 46, 1, 0), UDim2.new(0, 22, 0, 0), C.GREY,  FONT_REG,  12)
-    local val = label(row, "Val", valDefault, UDim2.new(0, 90, 1, 0), UDim2.new(0, 66, 0, 0), C.WHITE, FONT_SEMI, 12)
+    mkPad(row, 10, 6, 0, 0)
+    mkLabel(row, "Ico", ico,
+        UDim2.new(0, 20, 1, 0), UDim2.new(0, 0, 0, 0), C.GOLD, BOLD, 15)
+    mkLabel(row, "Lbl", labelTxt,
+        UDim2.new(0, 48, 1, 0), UDim2.new(0, 24, 0, 0), C.GREY, REG, 12)
+    local val = mkLabel(row, "Val", defVal,
+        UDim2.new(0, 100, 1, 0), UDim2.new(0, 70, 0, 0), C.WHITE, SEMI, 12)
     return val, row
 end
 
--- Level row needs an extra Third Sea badge
-local levelVal, levelRow = makeStatRow(28,  "✖", "Level: ", "...", "Level")
--- Third Sea label sits to the right inside level row
-local thirdSeaLabel = label(levelRow, "ThirdSea",
+-- Level row (y=30 = below header 24 + 6 gap)
+local levelVal, levelRow = mkStatRow(30,  "⚔", "Level:", "...", "Level")
+
+-- Third Sea badge sits right-aligned inside level row
+local thirdSea = mkLabel(levelRow, "ThirdSea",
     "Third Sea : ✗",
-    UDim2.new(0, 100, 1, 0),
-    UDim2.new(1, -104, 0, 0),
-    Color3.fromRGB(200, 80, 80), FONT_SEMI, 11,
+    UDim2.new(0, 104, 0, 40),
+    UDim2.new(1, -108, 0, 0),
+    C.SEA_NO, SEMI, 11,
     Enum.TextXAlignment.Right
 )
 
-local raceVal  = makeStatRow(70,  "🪪", "Race: ", "Human",   "Race")
-local beliVal  = makeStatRow(112, "💰", "Beli: ", "0",       "Beli")
-local fragVal  = makeStatRow(154, "💎", "Frag: ", "0",       "Frag")
+local raceVal  = mkStatRow(76,  "🪪", "Race:",  "Human",  "Race")
+local beliVal  = mkStatRow(122, "💰", "Beli:",  "0",      "Beli")
+local fragVal  = mkStatRow(168, "💎", "Frag:",  "0",      "Frag")
 
--- ══════════════════════════════════════════════════════════
--- RIGHT PANEL  —  Account Items (empty reserved space)
--- ══════════════════════════════════════════════════════════
-
-local rightBox = frame(Panel, "RightBox",
-    UDim2.new(1, -(LEFT_W + 12), 0, 196),
-    UDim2.new(0, LEFT_W + 12, 0, COLS_Y),
-    C.BG_MID, 8
+-- ════════════════════════════════════════════
+-- RIGHT BOX — Account Items (empty)
+-- ════════════════════════════════════════════
+local RBox = mkFrame(Panel, "RBox",
+    UDim2.new(0.49, 0, 0, 230),
+    UDim2.new(0.51, 0, 0, 40),
+    C.BOX, 10
 )
-stroke(rightBox, Color3.fromRGB(60, 60, 70), 1)
-padding(rightBox, 10, 8, 8, 8)
+mkStroke(RBox, C.INNER_BDR, 1)
+mkPad(RBox, 10, 8, 8, 8)
 
-local rHeader = frame(rightBox, "RHeader", UDim2.new(1, 0, 0, 22), UDim2.new(0, 0, 0, 0), C.BG_MID)
-label(rHeader, "BagIco",  "🎒", UDim2.new(0, 18, 1, 0), UDim2.new(0, 0, 0, 0), C.GOLD, FONT_BOLD, 13)
-label(rHeader, "RTitle", "Account Items", UDim2.new(1, -22, 1, 0), UDim2.new(0, 22, 0, 0), C.WHITE, FONT_SEMI, 12)
+local rh = mkFrame(RBox, "RHdr", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 0), C.BOX_HDR, 6)
+mkLabel(rh, "Ico",   "🎒", UDim2.new(0, 20, 1, 0), UDim2.new(0, 4,  0, 0), C.GOLD, BOLD, 13)
+mkLabel(rh, "Title", "Account Items",
+    UDim2.new(1, -26, 1, 0), UDim2.new(0, 26, 0, 0), C.WHITE, SEMI, 12)
+-- (empty body — reserved for scanned inventory)
 
--- Empty inventory note
-label(rightBox, "EmptyNote",
-    "",    -- intentionally blank — reserved space
-    UDim2.new(1, 0, 1, -26),
-    UDim2.new(0, 0, 0, 28),
-    C.GREY, FONT_REG, 11,
-    Enum.TextXAlignment.Center
+-- ════════════════════════════════════════════
+-- BOTTOM — "Status Checks" label only
+-- (no buttons)
+-- ════════════════════════════════════════════
+local scRow = mkFrame(Panel, "StatusChecksRow",
+    UDim2.new(1, 0, 0, 28),
+    UDim2.new(0, 0, 0, 278),   -- below boxes (40 + 230 + 8)
+    C.PANEL
 )
+mkLabel(scRow, "Ico",   "🔍",
+    UDim2.new(0, 20, 1, 0), UDim2.new(0.5, -70, 0, 0),
+    C.GOLD, BOLD, 14)
+mkLabel(scRow, "Title", "Status Checks",
+    UDim2.new(0, 120, 1, 0), UDim2.new(0.5, -52, 0, 0),
+    C.WHITE, SEMI, 13)
 
--- ══════════════════════════════════════════════════════════
--- BOTTOM SECTION  —  Status Checks
--- ══════════════════════════════════════════════════════════
-
-local bottomY = COLS_Y + 196 + 12   -- below the two panels
-
--- "Status Checks" header row
-local statusHeader = frame(Panel, "StatusHeader",
-    UDim2.new(1, 0, 0, 22),
-    UDim2.new(0, 0, 0, bottomY),
-    C.BG_DARK
-)
-local shCenterX = UDim2.new(0.5, -70, 0, 0)
-label(statusHeader, "MagIco", "🔍", UDim2.new(0, 18, 1, 0), UDim2.new(0.5, -72, 0, 0), C.GOLD,  FONT_BOLD, 13)
-label(statusHeader, "STitle", "Status Checks",
-    UDim2.new(0, 120, 1, 0), UDim2.new(0.5, -54, 0, 0),
-    C.WHITE, FONT_SEMI, 13
+-- Thin separator above Status Checks
+local div2 = mkFrame(Panel, "Div2",
+    UDim2.new(1, 0, 0, 1),
+    UDim2.new(0, 0, 0, 274),
+    C.INNER_BDR
 )
 
--- Button container
-local btnContainer = frame(Panel, "BtnContainer",
-    UDim2.new(1, 0, 0, 84),
-    UDim2.new(0, 0, 0, bottomY + 26),
-    C.BG_DARK
-)
-
-local grid = Instance.new("UIGridLayout")
-grid.CellSize             = UDim2.new(0, 148, 0, 34)
-grid.CellPadding          = UDim2.new(0, 8,  0, 8)
-grid.FillDirection        = Enum.FillDirection.Horizontal
-grid.SortOrder            = Enum.SortOrder.LayoutOrder
-grid.HorizontalAlignment  = Enum.HorizontalAlignment.Center
-grid.VerticalAlignment    = Enum.VerticalAlignment.Center
-grid.Parent               = btnContainer
-
--- Six status buttons — order matches screenshot (row-major, left→right, top→bottom)
-local BTNS = {
-    "GodHuman",
-    "Cursed Dual Katana",
-    "Valkyrie Helm",
-    "Skull Guitar",
-    "Mirror Fractal",
-    "Pull Lever",
-}
-
-for i, name in ipairs(BTNS) do
-    local btn = Instance.new("TextButton")
-    btn.Name              = "Btn_" .. i
-    btn.LayoutOrder       = i
-    btn.Text              = ""          -- we build the content manually
-    btn.BackgroundColor3  = C.BG_ROW
-    btn.BorderSizePixel   = 0
-    btn.AutoButtonColor   = false
-    btn.Parent            = btnContainer
-    corner(btn, 8)
-    stroke(btn, Color3.fromRGB(55, 55, 60), 1)
-
-    -- Red dot circle
-    local dot = Instance.new("Frame")
-    dot.Name             = "Dot"
-    dot.Size             = UDim2.new(0, 12, 0, 12)
-    dot.Position         = UDim2.new(0, 10, 0.5, -6)
-    dot.BackgroundColor3 = C.RED_DOT
-    dot.BorderSizePixel  = 0
-    dot.Parent           = btn
-    corner(dot, 6)
-
-    -- Button text
-    local txt = label(btn, "Txt",
-        name,
-        UDim2.new(1, -30, 1, 0),
-        UDim2.new(0, 28, 0, 0),
-        C.WHITE, FONT_SEMI, 12
-    )
-
-    -- Hover
-    btn.MouseEnter:Connect(function()
-        tween(btn, { BackgroundColor3 = Color3.fromRGB(38, 38, 44) }, 0.12)
-        tween(dot, { BackgroundColor3 = C.RED_HOVER }, 0.12)
-    end)
-    btn.MouseLeave:Connect(function()
-        tween(btn, { BackgroundColor3 = C.BG_ROW }, 0.12)
-        tween(dot, { BackgroundColor3 = C.RED_DOT }, 0.12)
-    end)
-end
-
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
 -- LIVE DATA BINDING
--- ══════════════════════════════════════════════════════════
-
+-- ════════════════════════════════════════════
 local cachedData = nil
 local startTime  = os.clock()
 
--- Safely bind a Value object inside Data
-local function bindValue(data, valueName, callback)
-    local obj = data:FindFirstChild(valueName)
+local function bindVal(data, name, cb)
+    local obj = data:FindFirstChild(name)
     if not obj then return end
-    -- Fire immediately with current value
-    pcall(callback, obj.Value)
-    -- Fire on every change
+    pcall(cb, obj.Value)
     obj:GetPropertyChangedSignal("Value"):Connect(function()
-        pcall(callback, obj.Value)
+        pcall(cb, obj.Value)
     end)
 end
 
-local function updateSeaLabel(seaVal)
-    local n = tonumber(seaVal)
-    local inThird = (n == 3) or (tostring(seaVal):lower():find("third") ~= nil)
-    if inThird then
-        thirdSeaLabel.Text      = "Third Sea : ✓"
-        thirdSeaLabel.TextColor3 = C.GREEN
+local function updateSea(v)
+    local n = tonumber(v)
+    local is3 = (n == 3) or (tostring(v):lower():find("third") ~= nil)
+    if is3 then
+        thirdSea.Text      = "Third Sea : ✓"
+        thirdSea.TextColor3 = C.GREEN
     else
-        thirdSeaLabel.Text       = "Third Sea : ✗"
-        thirdSeaLabel.TextColor3  = Color3.fromRGB(200, 80, 80)
+        thirdSea.Text       = "Third Sea : ✗"
+        thirdSea.TextColor3  = C.SEA_NO
     end
 end
 
 task.spawn(function()
-    -- Wait up to 15 s for the Data folder to exist
-    local dataFolder = LocalPlayer:WaitForChild("Data", 15)
-    if not dataFolder then
-        warn("[ChuoiHub] Data folder not found — live stats disabled.")
+    local data = LP:WaitForChild("Data", 15)
+    if not data then
+        warn("[ChuoiHub] Data folder not found — stats disabled.")
         return
     end
-    cachedData = dataFolder
+    cachedData = data
 
-    bindValue(dataFolder, "Level", function(v)
-        levelVal.Text = tostring(v)
-    end)
+    bindVal(data, "Level",     function(v) levelVal.Text = tostring(v) end)
+    bindVal(data, "Race",      function(v) raceVal.Text  = tostring(v) end)
+    bindVal(data, "Beli",      function(v) beliVal.Text  = fmtNum(v)   end)
+    bindVal(data, "Fragments", function(v) fragVal.Text  = fmtNum(v)   end)
 
-    bindValue(dataFolder, "Race", function(v)
-        raceVal.Text = tostring(v)
-    end)
-
-    bindValue(dataFolder, "Beli", function(v)
-        beliVal.Text = fmtNumber(v)
-    end)
-
-    bindValue(dataFolder, "Fragments", function(v)
-        fragVal.Text = fmtNumber(v)
-    end)
-
-    -- Sea detection — Blox Fruits may store this differently per version
-    local seaObj = dataFolder:FindFirstChild("Sea")
-               or dataFolder:FindFirstChild("CurrentSea")
-               or dataFolder:FindFirstChild("SeaName")
+    -- Sea detection (Blox Fruits varies by version)
+    local seaObj = data:FindFirstChild("Sea")
+                or data:FindFirstChild("CurrentSea")
+                or data:FindFirstChild("SeaName")
     if seaObj then
-        updateSeaLabel(seaObj.Value)
+        updateSea(seaObj.Value)
         seaObj:GetPropertyChangedSignal("Value"):Connect(function()
-            updateSeaLabel(seaObj.Value)
+            updateSea(seaObj.Value)
         end)
     end
 end)
 
--- ══════════════════════════════════════════════════════════
--- HEARTBEAT  —  live timer + status bar refresh
--- ══════════════════════════════════════════════════════════
-
+-- ════════════════════════════════════════════
+-- HEARTBEAT — timer + status bar
+-- ════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
-    local elapsed = os.clock() - startTime
-    local eStr    = fmtElapsed(elapsed)
+    local e = os.clock() - startTime
+    local t = fmtElapsed(e)
 
-    -- Row 2 item label — mirrors screenshot format
-    itemLabel.Text = "Item : Time Machine | " .. eStr
+    itemLbl.Text = "Item : Time Machine | " .. t
 
-    -- Row 3 status bar
     local lv, sea, fr = "?", "?", "?"
     if cachedData then
         local lo = cachedData:FindFirstChild("Level")
-        local so = cachedData:FindFirstChild("Sea")
-                or cachedData:FindFirstChild("CurrentSea")
+        local so = cachedData:FindFirstChild("Sea") or cachedData:FindFirstChild("CurrentSea")
         local fo = cachedData:FindFirstChild("Fragments")
         if lo then lv  = tostring(lo.Value) end
         if so then sea = tostring(so.Value) end
-        if fo then fr  = fmtNumber(fo.Value) end
+        if fo then fr  = fmtNum(fo.Value)   end
     end
 
-    statusLabel.Text = string.format("Lv.%s | Sea%s | Frag:%s | %s", lv, sea, fr, eStr)
+    statusLbl.Text = ("Lv.%s | Sea%s | Frag:%s | %s"):format(lv, sea, fr, t)
 end)
 
--- ══════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════
 -- [M] TOGGLE
--- ══════════════════════════════════════════════════════════
-
-local guiShown = true
+-- ════════════════════════════════════════════
+local visible = true
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.M then
-        guiShown = not guiShown
-        tween(Root, { GroupTransparency = guiShown and 0 or 1 }, 0.25,
-              Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        visible = not visible
+        tw(Root, { GroupTransparency = visible and 0 or 1 }, 0.3,
+           Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     end
 end)
 
--- ══════════════════════════════════════════════════════════
--- BOOT ANIMATION  (staggered, 1.2 s total)
--- ══════════════════════════════════════════════════════════
---
--- Sequence:
---   0.00 s  — discord tag + Frame 1 bar fade in  (0.5 s)
---   0.35 s  — main panel fades in               (0.6 s)
---   0.70 s  — left/right boxes slide-settle     (subtle)
---   0.95 s  — border pulse on both frames       (0.3 s ping-pong)
---
--- We accomplish this with a single GroupTransparency tween on Root,
--- then individual alpha tweens on the sub-CanvasGroups below.
--- For simplicity (and to avoid excessive CanvasGroup nesting which
--- costs performance), we use Position offsets + transparency tweens
--- on the Frame children directly instead.
--- ──────────────────────────────────────────────────────────
-
+-- ════════════════════════════════════════════
+-- BOOT ANIMATION — staggered 1.2s
+-- ════════════════════════════════════════════
 task.spawn(function()
-    -- Ensure everything is invisible at frame 0
     Root.GroupTransparency = 1
-    Bar.BackgroundTransparency  = 1
-    Panel.BackgroundTransparency = 1
+    task.wait(0.08)
 
-    task.wait(0.05)  -- let Roblox finish parenting
+    -- Step 1: fade entire Root in (0.7s)
+    tw(Root, { GroupTransparency = 0 }, 0.7,
+       Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
-    -- ① Fade in the discord label + top bar
-    tween(Root, { GroupTransparency = 0 }, 1.0,
-          Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-
-    -- ② Delay the bar becoming visible (it fades from BG transparent)
-    task.delay(0.0, function()
-        tween(Bar, { BackgroundTransparency = 0 }, 0.5,
-              Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    end)
-
-    -- ③ Main panel comes in slightly after
-    task.delay(0.30, function()
-        tween(Panel, { BackgroundTransparency = 0 }, 0.6,
-              Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    end)
-
-    -- ④ Border pulse on Bar
-    task.delay(0.80, function()
+    -- Step 2: border pulse on Bar (0.5s in)
+    task.delay(0.5, function()
         local s = Bar:FindFirstChildOfClass("UIStroke")
         if s then
-            tween(s, { Thickness = 2.5 }, 0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-            task.delay(0.18, function()
-                tween(s, { Thickness = 1 }, 0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+            tw(s, { Thickness = 2.2 }, 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            task.delay(0.22, function()
+                tw(s, { Thickness = 1 }, 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
             end)
         end
     end)
 
-    -- ⑤ Border pulse on Panel
-    task.delay(1.00, function()
+    -- Step 3: border pulse on Panel (0.75s in)
+    task.delay(0.75, function()
         local s = Panel:FindFirstChildOfClass("UIStroke")
         if s then
-            tween(s, { Thickness = 2.5 }, 0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-            task.delay(0.18, function()
-                tween(s, { Thickness = 1 }, 0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+            tw(s, { Thickness = 2.2 }, 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            task.delay(0.22, function()
+                tw(s, { Thickness = 1 }, 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
             end)
         end
     end)
 
     task.delay(1.2, function()
-        print("[ChuoiHub] ✓ Boot sequence complete.")
+        print("[ChuoiHub] ✓ Boot hoàn tất.")
     end)
 end)
